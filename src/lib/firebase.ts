@@ -89,14 +89,34 @@ export async function saveUserToFirestore(user: User) {
 export async function saveScoreToFirestore(userId: string, scoreData: any, userData: any) {
   try {
     const scoresRef = collection(db, "scores");
-    await addDoc(scoresRef, {
+    const docRef = await addDoc(scoresRef, {
       ...scoreData,
       userId,
       userData,
       createdAt: Timestamp.now(),
     });
+    return docRef.id;
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, "scores");
+    return null;
+  }
+}
+
+export async function getScoreById(scoreId: string) {
+  try {
+    const scoreRef = doc(db, "scores", scoreId);
+    const scoreDoc = await getDoc(scoreRef);
+    if (scoreDoc.exists()) {
+      return {
+        id: scoreDoc.id,
+        ...scoreDoc.data(),
+        createdAt: scoreDoc.data().createdAt?.toDate()?.toISOString(),
+      };
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `scores/${scoreId}`);
+    return null;
   }
 }
 

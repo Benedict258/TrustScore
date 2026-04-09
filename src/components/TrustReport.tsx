@@ -15,7 +15,7 @@ export function TrustReport({ result, userData }: TrustReportProps) {
   });
 
   return (
-    <div className="hidden print:block bg-white p-12 text-stone-900 font-serif min-h-screen">
+    <div className="bg-white p-6 md:p-12 text-stone-900 font-serif min-h-screen print:p-0 print:m-0 print:shadow-none">
       {/* Header */}
       <div className="flex justify-between items-start border-b-2 border-stone-900 pb-8 mb-8">
         <div>

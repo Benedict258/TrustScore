@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
 import { Header } from "./components/Header";
 import { IntakeForm } from "./components/IntakeForm";
 import { ScoreCard } from "./components/ScoreCard";
@@ -10,13 +11,15 @@ import { toast } from "sonner";
 import { auth, saveUserToFirestore, saveScoreToFirestore, subscribeToUserScores, signInWithGoogle } from "./lib/firebase";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { Button } from "@/components/ui/button";
+import { ReportPage } from "./pages/ReportPage";
 
-export default function App() {
+function MainApp() {
   const [user, authLoading] = useAuthState(auth);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<TrustScoreResult | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [currentScoreId, setCurrentScoreId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<UserData>({
     weeklyVolume: "20000-50000",
@@ -47,10 +50,9 @@ export default function App() {
       if (savedHistory) {
         try {
           const parsed = JSON.parse(savedHistory);
-          // Map localStorage items to match Firestore structure for consistency
           setHistory(parsed.map((item: any) => ({
             ...item,
-            createdAt: item.date // Use date as createdAt for local items
+            createdAt: item.date
           })));
         } catch (e) {
           console.error("Failed to parse local history", e);
@@ -77,17 +79,15 @@ export default function App() {
       setResult(scoreResult);
       
       if (user) {
-        // Save to Firestore
-        await saveScoreToFirestore(user.uid, scoreResult, data);
+        const scoreId = await saveScoreToFirestore(user.uid, scoreResult, data);
+        setCurrentScoreId(scoreId);
       } else {
-        // Save to localStorage
         const localItem = {
           ...scoreResult,
           date: new Date().toLocaleDateString(),
         };
         const updatedHistory = [localItem, ...history].slice(0, 5);
         localStorage.setItem("trustscore_history", JSON.stringify(updatedHistory));
-        // Note: history state will be updated by the useEffect for local storage
         setHistory(updatedHistory.map(item => ({ ...item, createdAt: item.date })));
       }
       
@@ -108,6 +108,7 @@ export default function App() {
   const handleReset = () => {
     setResult(null);
     setError(null);
+    setCurrentScoreId(null);
   };
 
   const scoreDiff = result && history.length > 1 
@@ -222,7 +223,14 @@ export default function App() {
                           </span>
                           <span className="font-bold text-stone-700">{item.tier}</span>
                         </div>
-                        <div className="text-2xl font-black text-amber-600">{item.score}</div>
+                        <div className="flex items-center gap-4">
+                          {item.id && (
+                            <Link to={`/report/${item.id}`} className="text-[10px] font-bold text-amber-600 hover:underline uppercase tracking-widest">
+                              View Report
+                            </Link>
+                          )}
+                          <div className="text-2xl font-black text-amber-600">{item.score}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -241,6 +249,7 @@ export default function App() {
                 onReset={handleReset} 
                 scoreDiff={scoreDiff}
                 initialData={formData}
+                scoreId={currentScoreId}
               />
             </motion.div>
           )}
@@ -253,5 +262,17 @@ export default function App() {
         </p>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<MainApp />} />
+        <Route path="/report/:id" element={<ReportPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

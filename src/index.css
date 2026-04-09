@@ -146,3 +146,23 @@
     @apply font-sans;
     }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .report-print-container, .report-print-container * {
+    visibility: visible;
+  }
+  .report-print-container {
+    position: absolute;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}

@@ -94,8 +94,8 @@ let ai: GoogleGenAI | null = null;
 function getAI() {
   if (!ai) {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not set");
+    if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+      throw new Error("GEMINI_API_KEY is not configured. Please add it to your Secrets in the AI Studio settings.");
     }
     ai = new GoogleGenAI({ apiKey });
   }
