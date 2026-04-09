@@ -1,0 +1,100 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (matches Auth UID)
+// Fields:
+//   - uid: string (required)
+//   - email: string (required)
+//   - displayName: string
+//   - photoURL: string
+//   - createdAt: timestamp (required)
+//   - businessType: string (optional)
+//   - location: string (optional)
+//
+// Collection: scores
+// Document ID: auto-generated
+// Fields:
+//   - userId: string (required, matches Auth UID)
+//   - score: number (required, 0-100)
+//   - tier: string (required, Excellent|Good|Fair|Building)
+//   - tierDescription: string
+//   - maxLoanEligibility: string
+//   - factors: list
+//   - positiveDrivers: list
+//   - negativeDrivers: list
+//   - improvementTip: string
+//   - recommendedProduct: map
+//   - verification: map
+//   - aiInterpretation: string
+//   - createdAt: timestamp (required)
+//   - userData: map (snapshot of inputs)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' || 
+         (request.auth.token.email == "benedictisaac258@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.email is string && data.email.size() < 256 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidScore(data) {
+      return data.keys().hasAll(['userId', 'score', 'tier', 'createdAt']) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.score is number && data.score >= 0 && data.score <= 100 &&
+             data.tier in ['Excellent', 'Good', 'Fair', 'Building'] &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    request.resource.data.email == resource.data.email; // Email immutable
+    }
+
+    match /scores/{scoreId} {
+      allow read: if isDocOwner() || isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidScore(request.resource.data);
+      allow update: if false; // Scores should be immutable once generated
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

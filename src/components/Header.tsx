@@ -1,4 +1,5 @@
 import { ShieldCheck } from "lucide-react";
+import { UserMenu } from "./UserMenu";
 
 export function Header() {
   return (
@@ -12,8 +13,9 @@ export function Header() {
           <p className="text-[10px] uppercase tracking-widest font-semibold text-stone-500">AI Credit Intelligence</p>
         </div>
       </div>
-      <div className="hidden sm:flex items-center gap-4">
-        <span className="text-xs font-medium text-stone-500 bg-stone-100 px-3 py-1 rounded-full">West Africa Edition</span>
+      <div className="flex items-center gap-4">
+        <span className="hidden sm:inline-block text-xs font-medium text-stone-500 bg-stone-100 px-3 py-1 rounded-full">West Africa Edition</span>
+        <UserMenu />
       </div>
     </header>
   );

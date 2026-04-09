@@ -3,17 +3,20 @@ import { TrustScoreResult } from "@/src/services/gemini";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, AlertCircle, ArrowUpRight, Lightbulb, Landmark, Share2, RotateCcw, TrendingUp, TrendingDown } from "lucide-react";
+import { CheckCircle2, AlertCircle, ArrowUpRight, Lightbulb, Landmark, Share2, RotateCcw, TrendingUp, TrendingDown, ShieldCheck, FileText, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { ScoreSimulator } from "./ScoreSimulator";
+import { TrustReport } from "./TrustReport";
 
 interface ScoreCardProps {
   result: TrustScoreResult;
   onReset: () => void;
   scoreDiff: number | null;
+  initialData: any;
 }
 
-export function ScoreCard({ result, onReset, scoreDiff }: ScoreCardProps) {
+export function ScoreCard({ result, onReset, scoreDiff, initialData }: ScoreCardProps) {
   const getTierColor = (tier: string) => {
     switch (tier) {
       case "Excellent": return "text-emerald-600 bg-emerald-50 border-emerald-200";
@@ -40,166 +43,169 @@ export function ScoreCard({ result, onReset, scoreDiff }: ScoreCardProps) {
 
   return (
     <div className="w-full max-w-3xl mx-auto space-y-6 pb-12">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Card className="border-stone-200 shadow-2xl overflow-hidden">
-          <div className="bg-stone-900 p-8 text-white relative overflow-hidden">
-            {/* Background pattern */}
-            <div className="absolute inset-0 opacity-10 pointer-events-none">
-              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
-            </div>
-
-            <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
-              <div className="relative flex items-center justify-center">
-                <svg className="w-40 h-40 transform -rotate-90">
-                  <circle
-                    cx="80"
-                    cy="80"
-                    r="70"
-                    stroke="currentColor"
-                    strokeWidth="12"
-                    fill="transparent"
-                    className="text-stone-800"
-                  />
-                  <motion.circle
-                    cx="80"
-                    cy="80"
-                    r="70"
-                    stroke="currentColor"
-                    strokeWidth="12"
-                    fill="transparent"
-                    strokeDasharray={440}
-                    initial={{ strokeDashoffset: 440 }}
-                    animate={{ strokeDashoffset: 440 - (440 * result.score) / 100 }}
-                    transition={{ duration: 1.5, ease: "easeOut" }}
-                    className="text-amber-500"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <motion.span 
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5, duration: 0.5 }}
-                    className="text-5xl font-black"
-                  >
-                    {result.score}
-                  </motion.span>
-                  <span className="text-[10px] uppercase tracking-tighter opacity-60 font-bold">Trust Score</span>
-                </div>
+      <div className="print:hidden">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="border-stone-200 shadow-2xl overflow-hidden">
+            <div className="bg-stone-900 p-8 text-white relative overflow-hidden">
+              <div className="absolute inset-0 opacity-10 pointer-events-none">
+                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]" />
               </div>
 
-              <div className="flex-1 text-center md:text-left space-y-2">
-                <div className="flex items-center justify-center md:justify-start gap-3">
-                  <Badge className={`px-3 py-1 text-sm font-bold border ${getTierColor(result.tier)}`}>
-                    {result.tier} Standing
-                  </Badge>
-                  
-                  {scoreDiff !== null && (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md ${
-                        scoreDiff > 0 ? "text-emerald-400 bg-emerald-400/10" : 
-                        scoreDiff < 0 ? "text-rose-400 bg-rose-400/10" : 
-                        "text-stone-400 bg-stone-400/10"
-                      }`}
-                    >
-                      {scoreDiff > 0 ? <TrendingUp className="w-3 h-3" /> : 
-                       scoreDiff < 0 ? <TrendingDown className="w-3 h-3" /> : null}
-                      {scoreDiff > 0 ? `+${scoreDiff}` : scoreDiff}
-                    </motion.div>
-                  )}
-                </div>
-                
-                <h2 className="text-3xl font-bold tracking-tight">{result.tierDescription}</h2>
-                <div className="flex items-center justify-center md:justify-start gap-2 text-amber-400 font-medium">
-                  <Landmark className="w-5 h-5" />
-                  <span>Eligible for micro-loan up to {result.maxLoanEligibility}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <CardContent className="p-8 bg-white">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {result.factors.map((factor, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.8 + idx * 0.1 }}
-                  className="p-4 rounded-2xl bg-stone-50 border border-stone-100 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-stone-500">{factor.name}</span>
-                    {getImpactIcon(factor.impact)}
+              <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+                <div className="relative flex items-center justify-center">
+                  <svg className="w-40 h-40 transform -rotate-90">
+                    <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-stone-800" />
+                    <motion.circle
+                      cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent"
+                      strokeDasharray={440}
+                      initial={{ strokeDashoffset: 440 }}
+                      animate={{ strokeDashoffset: 440 - (440 * result.score) / 100 }}
+                      transition={{ duration: 1.5, ease: "easeOut" }}
+                      className="text-amber-500"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <motion.span className="text-5xl font-black">{result.score}</motion.span>
+                    <span className="text-[10px] uppercase tracking-tighter opacity-60 font-bold">Trust Score</span>
                   </div>
-                  <p className="text-sm text-stone-700 leading-relaxed">{factor.explanation}</p>
-                  <div className="pt-2">
-                    <div className="flex justify-between text-[10px] uppercase font-bold text-stone-400 mb-1">
-                      <span>Impact Weight</span>
-                      <span>{factor.weight}</span>
+                </div>
+
+                <div className="flex-1 text-center md:text-left space-y-2">
+                  <div className="flex items-center justify-center md:justify-start gap-3">
+                    <Badge className={`px-3 py-1 text-sm font-bold border ${getTierColor(result.tier)}`}>
+                      {result.tier} Standing
+                    </Badge>
+                    
+                    {scoreDiff !== null && (
+                      <motion.div 
+                        initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+                        className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-md ${
+                          scoreDiff > 0 ? "text-emerald-400 bg-emerald-400/10" : 
+                          scoreDiff < 0 ? "text-rose-400 bg-rose-400/10" : "text-stone-400 bg-stone-400/10"
+                        }`}
+                      >
+                        {scoreDiff > 0 ? <TrendingUp className="w-3 h-3" /> : scoreDiff < 0 ? <TrendingDown className="w-3 h-3" /> : null}
+                        {scoreDiff > 0 ? `+${scoreDiff}` : scoreDiff}
+                      </motion.div>
+                    )}
+
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/10 border border-white/10 text-[10px] font-bold uppercase tracking-wider">
+                      <ShieldCheck className={`w-3 h-3 ${result.verification.confidenceScore > 70 ? "text-emerald-400" : "text-amber-400"}`} />
+                      <span>Confidence: {result.verification.confidenceScore}%</span>
                     </div>
-                    <Progress value={parseInt(factor.weight)} className="h-1 bg-stone-200" />
+                  </div>
+                  
+                  <h2 className="text-3xl font-bold tracking-tight">{result.tierDescription}</h2>
+                  <div className="flex items-center justify-center md:justify-start gap-2 text-amber-400 font-medium">
+                    <Landmark className="w-5 h-5" />
+                    <span>Eligible for micro-loan up to {result.maxLoanEligibility}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <CardContent className="p-8 bg-white">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {result.factors.map((factor, idx) => (
+                  <motion.div
+                    key={idx} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.8 + idx * 0.1 }}
+                    className="p-4 rounded-2xl bg-stone-50 border border-stone-100 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-stone-500">{factor.name}</span>
+                      {getImpactIcon(factor.impact)}
+                    </div>
+                    <p className="text-sm text-stone-700 leading-relaxed">{factor.explanation}</p>
+                    <div className="pt-2">
+                      <div className="flex justify-between text-[10px] uppercase font-bold text-stone-400 mb-1">
+                        <span>Impact Weight</span>
+                        <span>{factor.weight}</span>
+                      </div>
+                      <Progress value={parseInt(factor.weight)} className="h-1 bg-stone-200" />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="mt-8 p-6 rounded-2xl bg-stone-900 text-white space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-5 h-5 text-amber-400" />
+                    <h3 className="font-bold uppercase tracking-tight text-sm">Why this score?</h3>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] border-white/20 text-white/60">AI Interpretation</Badge>
+                </div>
+                <p className="text-sm text-stone-300 leading-relaxed italic">"{result.aiInterpretation}"</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">Positive Drivers</span>
+                    <ul className="space-y-1">
+                      {result.positiveDrivers.map((d, i) => (
+                        <li key={i} className="text-xs text-stone-400 flex items-start gap-2">
+                          <CheckCircle2 className="w-3 h-3 mt-0.5 text-emerald-500 shrink-0" /> {d}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Areas for Growth</span>
+                    <ul className="space-y-1">
+                      {result.negativeDrivers.map((d, i) => (
+                        <li key={i} className="text-xs text-stone-400 flex items-start gap-2">
+                          <AlertCircle className="w-3 h-3 mt-0.5 text-amber-500 shrink-0" /> {d}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8">
+                <ScoreSimulator currentScore={result.score} initialData={initialData} />
+              </div>
+
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2 }} className="p-6 rounded-2xl bg-amber-50 border border-amber-100 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-700">
+                    <Lightbulb className="w-5 h-5" />
+                    <h3 className="font-bold uppercase tracking-tight text-sm">Actionable Tip</h3>
+                  </div>
+                  <p className="text-stone-800 font-medium">{result.improvementTip}</p>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.4 }} className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <Landmark className="w-5 h-5" />
+                    <h3 className="font-bold uppercase tracking-tight text-sm">Recommended Partner</h3>
+                  </div>
+                  <div>
+                    <p className="text-stone-900 font-bold">{result.recommendedProduct.name}</p>
+                    <p className="text-stone-600 text-sm">{result.recommendedProduct.reason}</p>
                   </div>
                 </motion.div>
-              ))}
-            </div>
+              </div>
 
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.2 }}
-                className="p-6 rounded-2xl bg-amber-50 border border-amber-100 space-y-3"
-              >
-                <div className="flex items-center gap-2 text-amber-700">
-                  <Lightbulb className="w-5 h-5" />
-                  <h3 className="font-bold uppercase tracking-tight text-sm">Actionable Tip</h3>
-                </div>
-                <p className="text-stone-800 font-medium">{result.improvementTip}</p>
-              </motion.div>
+              <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                <Button onClick={() => window.print()} variant="outline" className="flex-1 border-stone-200 text-stone-700 hover:bg-stone-50">
+                  <FileText className="w-4 h-4 mr-2" /> Download Report (PDF)
+                </Button>
+                <Button onClick={handleShare} variant="outline" className="flex-1 border-stone-200 text-stone-700 hover:bg-stone-50">
+                  <Share2 className="w-4 h-4 mr-2" /> Share Link
+                </Button>
+                <Button onClick={onReset} className="flex-1 bg-stone-900 hover:bg-stone-800 text-white">
+                  <RotateCcw className="w-4 h-4 mr-2" /> Recalculate
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.4 }}
-                className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100 space-y-3"
-              >
-                <div className="flex items-center gap-2 text-emerald-700">
-                  <Landmark className="w-5 h-5" />
-                  <h3 className="font-bold uppercase tracking-tight text-sm">Recommended Partner</h3>
-                </div>
-                <div>
-                  <p className="text-stone-900 font-bold">{result.recommendedProduct.name}</p>
-                  <p className="text-stone-600 text-sm">{result.recommendedProduct.reason}</p>
-                </div>
-              </motion.div>
-            </div>
-
-            <div className="mt-8 flex flex-col sm:flex-row gap-4">
-              <Button 
-                onClick={handleShare}
-                variant="outline" 
-                className="flex-1 border-stone-200 text-stone-700 hover:bg-stone-50"
-              >
-                <Share2 className="w-4 h-4 mr-2" />
-                Share My Score
-              </Button>
-              <Button 
-                onClick={onReset}
-                className="flex-1 bg-stone-900 hover:bg-stone-800 text-white"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Recalculate
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      <TrustReport result={result} userData={initialData} />
     </div>
   );
 }

@@ -2,25 +2,22 @@ import { useState, useEffect } from "react";
 import { Header } from "./components/Header";
 import { IntakeForm } from "./components/IntakeForm";
 import { ScoreCard } from "./components/ScoreCard";
-import { getTrustScore, UserData, TrustScoreResult } from "./services/gemini";
+import { getTrustScore, analyzeEvidence, TrustScoreResult, UserData, VerificationResult } from "./services/gemini";
 import { motion, AnimatePresence } from "motion/react";
-import { History, TrendingUp, Info } from "lucide-react";
+import { History, TrendingUp, Info, LogIn } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-
-interface HistoryItem {
-  date: string;
-  score: number;
-  tier: string;
-}
+import { auth, saveUserToFirestore, saveScoreToFirestore, subscribeToUserScores, signInWithGoogle } from "./lib/firebase";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { Button } from "@/components/ui/button";
 
 export default function App() {
+  const [user, authLoading] = useAuthState(auth);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<TrustScoreResult | null>(null);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   
-  // Lifted form state to persist values during "Recalculate"
   const [formData, setFormData] = useState<UserData>({
     weeklyVolume: "20000-50000",
     weeklyFrequency: 5,
@@ -31,31 +28,68 @@ export default function App() {
     informalLoanAmount: 0,
   });
 
+  // Handle user login/profile saving
   useEffect(() => {
-    const savedHistory = localStorage.getItem("trustscore_history");
-    if (savedHistory) {
-      setHistory(JSON.parse(savedHistory));
+    if (user) {
+      saveUserToFirestore(user);
     }
-  }, []);
+  }, [user]);
 
-  const handleSubmit = async (data: UserData) => {
+  // Subscribe to scores from Firestore if logged in, otherwise use localStorage
+  useEffect(() => {
+    if (user) {
+      const unsubscribe = subscribeToUserScores(user.uid, (scores) => {
+        setHistory(scores);
+      });
+      return () => unsubscribe();
+    } else {
+      const savedHistory = localStorage.getItem("trustscore_history");
+      if (savedHistory) {
+        try {
+          const parsed = JSON.parse(savedHistory);
+          // Map localStorage items to match Firestore structure for consistency
+          setHistory(parsed.map((item: any) => ({
+            ...item,
+            createdAt: item.date // Use date as createdAt for local items
+          })));
+        } catch (e) {
+          console.error("Failed to parse local history", e);
+        }
+      }
+    }
+  }, [user]);
+
+  const handleSubmit = async (data: UserData, evidence: string[]) => {
     setIsLoading(true);
     setError(null);
-    setFormData(data); // Update persistent state
+    setFormData(data);
     
     try {
-      const scoreResult = await getTrustScore(data);
+      let verification: VerificationResult | undefined;
+      
+      if (evidence.length > 0) {
+        toast.info("Analyzing evidence screenshots...");
+        verification = await analyzeEvidence(evidence);
+        toast.success("Evidence analyzed successfully!");
+      }
+
+      const scoreResult = await getTrustScore(data, verification);
       setResult(scoreResult);
       
-      const newHistoryItem: HistoryItem = {
-        date: new Date().toLocaleDateString(),
-        score: scoreResult.score,
-        tier: scoreResult.tier,
-      };
-      
-      const updatedHistory = [newHistoryItem, ...history].slice(0, 5);
-      setHistory(updatedHistory);
-      localStorage.setItem("trustscore_history", JSON.stringify(updatedHistory));
+      if (user) {
+        // Save to Firestore
+        await saveScoreToFirestore(user.uid, scoreResult, data);
+      } else {
+        // Save to localStorage
+        const localItem = {
+          ...scoreResult,
+          date: new Date().toLocaleDateString(),
+        };
+        const updatedHistory = [localItem, ...history].slice(0, 5);
+        localStorage.setItem("trustscore_history", JSON.stringify(updatedHistory));
+        // Note: history state will be updated by the useEffect for local storage
+        setHistory(updatedHistory.map(item => ({ ...item, createdAt: item.date })));
+      }
       
       toast.success("Trust Score Generated!", {
         description: `Your score is ${scoreResult.score} (${scoreResult.tier})`,
@@ -76,17 +110,20 @@ export default function App() {
     setError(null);
   };
 
-  const getScoreDiff = () => {
-    if (history.length < 1 || !result) return null;
-    // The history already contains the current score as the first item
-    if (history.length < 2) return null;
-    
-    const current = result.score;
-    const previous = history[1].score;
-    return current - previous;
-  };
+  const scoreDiff = result && history.length > 1 
+    ? result.score - history[1].score 
+    : null;
 
-  const scoreDiff = getScoreDiff();
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#FDFCFB] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-amber-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-stone-500 font-bold uppercase tracking-widest text-xs">Loading TrustScore AI...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FDFCFB] text-stone-900 font-sans selection:bg-amber-100 selection:text-amber-900">
@@ -120,6 +157,19 @@ export default function App() {
                   helping you unlock formal financial opportunities.
                 </p>
               </div>
+
+              {!user && (
+                <div className="max-w-2xl mx-auto p-6 rounded-2xl bg-amber-50 border border-amber-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1 text-center md:text-left">
+                    <h3 className="font-bold text-amber-900">Sign in to save your progress</h3>
+                    <p className="text-sm text-amber-700">Authenticated users get cloud history and a verified financial identity.</p>
+                  </div>
+                  <Button onClick={() => signInWithGoogle()} className="bg-amber-600 hover:bg-amber-700 text-white gap-2">
+                    <LogIn className="w-4 h-4" />
+                    Sign In with Google
+                  </Button>
+                </div>
+              )}
 
               <IntakeForm 
                 onSubmit={handleSubmit} 
@@ -161,13 +211,15 @@ export default function App() {
                 <div className="max-w-2xl mx-auto space-y-4">
                   <h3 className="text-sm font-bold uppercase tracking-widest text-stone-400 flex items-center gap-2">
                     <History className="w-4 h-4" />
-                    Recent Scores
+                    {user ? "Cloud History" : "Local History"}
                   </h3>
                   <div className="space-y-2">
                     {history.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between p-4 rounded-xl bg-white border border-stone-100">
                         <div className="flex flex-col">
-                          <span className="text-xs font-bold text-stone-400 uppercase">{item.date}</span>
+                          <span className="text-xs font-bold text-stone-400 uppercase">
+                            {user ? new Date(item.createdAt).toLocaleDateString() : item.createdAt}
+                          </span>
                           <span className="font-bold text-stone-700">{item.tier}</span>
                         </div>
                         <div className="text-2xl font-black text-amber-600">{item.score}</div>
@@ -188,6 +240,7 @@ export default function App() {
                 result={result} 
                 onReset={handleReset} 
                 scoreDiff={scoreDiff}
+                initialData={formData}
               />
             </motion.div>
           )}

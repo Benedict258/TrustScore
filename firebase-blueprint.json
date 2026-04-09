@@ -1,0 +1,51 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores personalized information about the TrustScore user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "businessType": { "type": "string" },
+        "location": { "type": "string" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "TrustScore": {
+      "title": "Trust Score Result",
+      "description": "A generated trust score record linked to a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "score": { "type": "integer" },
+        "tier": { "type": "string", "enum": ["Excellent", "Good", "Fair", "Building"] },
+        "tierDescription": { "type": "string" },
+        "maxLoanEligibility": { "type": "string" },
+        "factors": { "type": "array" },
+        "positiveDrivers": { "type": "array" },
+        "negativeDrivers": { "type": "array" },
+        "improvementTip": { "type": "string" },
+        "recommendedProduct": { "type": "object" },
+        "verification": { "type": "object" },
+        "aiInterpretation": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userData": { "type": "object", "description": "Snapshot of the input data used for this score" }
+      },
+      "required": ["userId", "score", "tier", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/scores/{scoreId}": {
+      "schema": "TrustScore",
+      "description": "Individual trust score records"
+    }
+  }
+}

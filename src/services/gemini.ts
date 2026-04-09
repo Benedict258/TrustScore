@@ -2,7 +2,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 const SYSTEM_PROMPT = `You are TrustScore AI, an alternative credit scoring engine for informal workers in West Africa. You analyze informal financial behaviour and generate a Trust Score.
 
-You will receive a JSON object with these fields:
+You will receive a JSON object with user data and optionally a verification result from uploaded evidence.
+
+User data fields:
 - weeklyVolume: string (e.g. "20000-50000") — weekly mobile money transaction volume in Naira
 - weeklyFrequency: number — how many transactions per week
 - businessType: string — type of informal business
@@ -10,6 +12,11 @@ You will receive a JSON object with these fields:
 - monthsActive: number — months of consistent mobile money usage
 - hasInformalLoan: boolean — whether they currently have an outstanding informal loan
 - informalLoanAmount: number — outstanding loan amount in Naira (0 if none)
+
+Verification data (if provided):
+- verificationLevel: "Self-Reported" | "Evidence-Supported" | "Verified"
+- confidenceScore: number (0-100)
+- supportedClaims: string[]
 
 You must respond ONLY with a valid JSON object. No explanation, no markdown, no backticks. Just raw JSON.
 
@@ -24,6 +31,32 @@ Scoring guidance:
 
 Always be encouraging but honest. This score represents a real person's financial dignity.`;
 
+const EVIDENCE_PROMPT = `You are a Financial Evidence Auditor. Analyze the provided screenshot(s) of mobile money transactions, wallet balances, or savings records.
+Extract patterns to verify the user's financial claims.
+
+Check for:
+1. Recency of transactions.
+2. Frequency of activity.
+3. Evidence of recurring savings or transfers.
+4. Consistency with claimed business activity.
+
+Respond ONLY with a valid JSON object following this schema:
+{
+  "verificationLevel": "Evidence-Supported" | "Self-Reported",
+  "confidenceScore": number (0-100),
+  "supportedClaims": string[],
+  "riskFlags": string[],
+  "summary": string
+}`;
+
+export interface VerificationResult {
+  verificationLevel: "Self-Reported" | "Evidence-Supported" | "Verified";
+  confidenceScore: number;
+  supportedClaims: string[];
+  riskFlags: string[];
+  summary: string;
+}
+
 export interface TrustScoreResult {
   score: number;
   tier: "Excellent" | "Good" | "Fair" | "Building";
@@ -35,11 +68,15 @@ export interface TrustScoreResult {
     weight: string;
     explanation: string;
   }[];
+  positiveDrivers: string[];
+  negativeDrivers: string[];
   improvementTip: string;
   recommendedProduct: {
     name: string;
     reason: string;
   };
+  verification: VerificationResult;
+  aiInterpretation: string;
 }
 
 export interface UserData {
@@ -65,12 +102,46 @@ function getAI() {
   return ai;
 }
 
-export async function getTrustScore(userData: UserData): Promise<TrustScoreResult> {
+export async function analyzeEvidence(images: string[]): Promise<VerificationResult> {
   const genAI = getAI();
   
+  const imageParts = images.map(img => ({
+    inlineData: {
+      data: img.split(',')[1],
+      mimeType: "image/jpeg"
+    }
+  }));
+
   const response = await genAI.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: [{ parts: [{ text: `${SYSTEM_PROMPT}\n\nUser data:\n${JSON.stringify(userData)}` }] }],
+    contents: [{ parts: [...imageParts, { text: EVIDENCE_PROMPT }] }],
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          verificationLevel: { type: Type.STRING, enum: ["Evidence-Supported", "Self-Reported"] },
+          confidenceScore: { type: Type.INTEGER },
+          supportedClaims: { type: Type.ARRAY, items: { type: Type.STRING } },
+          riskFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+          summary: { type: Type.STRING }
+        },
+        required: ["verificationLevel", "confidenceScore", "supportedClaims", "riskFlags", "summary"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || "{}");
+}
+
+export async function getTrustScore(userData: UserData, verification?: VerificationResult): Promise<TrustScoreResult> {
+  const genAI = getAI();
+  
+  const prompt = `${SYSTEM_PROMPT}\n\nUser data:\n${JSON.stringify(userData)}${verification ? `\n\nVerification Data:\n${JSON.stringify(verification)}` : ""}`;
+
+  const response = await genAI.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: [{ parts: [{ text: prompt }] }],
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -93,6 +164,8 @@ export async function getTrustScore(userData: UserData): Promise<TrustScoreResul
               required: ["name", "impact", "weight", "explanation"],
             },
           },
+          positiveDrivers: { type: Type.ARRAY, items: { type: Type.STRING } },
+          negativeDrivers: { type: Type.ARRAY, items: { type: Type.STRING } },
           improvementTip: { type: Type.STRING },
           recommendedProduct: {
             type: Type.OBJECT,
@@ -102,16 +175,23 @@ export async function getTrustScore(userData: UserData): Promise<TrustScoreResul
             },
             required: ["name", "reason"],
           },
+          aiInterpretation: { type: Type.STRING },
         },
-        required: ["score", "tier", "tierDescription", "maxLoanEligibility", "factors", "improvementTip", "recommendedProduct"],
+        required: ["score", "tier", "tierDescription", "maxLoanEligibility", "factors", "positiveDrivers", "negativeDrivers", "improvementTip", "recommendedProduct", "aiInterpretation"],
       },
     },
   });
 
-  const text = response.text;
-  if (!text) {
-    throw new Error("No response from Gemini");
-  }
-
-  return JSON.parse(text);
+  const result = JSON.parse(response.text || "{}");
+  
+  return {
+    ...result,
+    verification: verification || {
+      verificationLevel: "Self-Reported",
+      confidenceScore: 45,
+      supportedClaims: ["Data provided by user manually"],
+      riskFlags: ["No evidence uploaded for verification"],
+      summary: "Score is based on self-reported data. Confidence is low to medium."
+    }
+  };
 }

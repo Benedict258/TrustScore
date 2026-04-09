@@ -5,16 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserData } from "@/src/services/gemini";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, ShieldCheck } from "lucide-react";
+import { EvidenceUpload } from "./EvidenceUpload";
 
 interface IntakeFormProps {
-  onSubmit: (data: UserData) => void;
+  onSubmit: (data: UserData, evidence: string[]) => void;
   isLoading: boolean;
   initialData: UserData;
 }
 
 export function IntakeForm({ onSubmit, isLoading, initialData }: IntakeFormProps) {
   const [formData, setFormData] = useState<UserData>(initialData);
+  const [evidence, setEvidence] = useState<string[]>([]);
 
   // Sync with initialData when it changes (e.g. after recalculate)
   useEffect(() => {
@@ -23,7 +25,7 @@ export function IntakeForm({ onSubmit, isLoading, initialData }: IntakeFormProps
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    onSubmit(formData, evidence);
   };
 
   return (
@@ -150,6 +152,10 @@ export function IntakeForm({ onSubmit, isLoading, initialData }: IntakeFormProps
                 />
               </div>
             )}
+          </div>
+
+          <div className="pt-4 border-t border-stone-100">
+            <EvidenceUpload onUpload={setEvidence} isAnalyzing={isLoading} />
           </div>
 
           <Button 
